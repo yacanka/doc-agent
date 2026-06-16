@@ -13,7 +13,9 @@ def qa_prompt(question: str, document_text: str) -> str:
 def planning_prompt(instruction: str, document_text: str) -> str:
     """Build a JSON-only operation planning prompt."""
     return (
-        "Return JSON only with shape {\"replacements\": {\"old\": \"new\"}}. "
-        "Plan safe literal DOCX text replacements.\n\n"
+        "Return strict JSON only with shape "
+        "{\"operations\":[{\"action\":\"replace_text\",\"tool\":\"word.replace_text\","
+        "\"parameters\":{\"replacements\":{\"old\":\"new\"}}}],\"risk\":\"low\"}. "
+        "Use only approved literal DOCX replacements and no file paths.\n\n"
         f"Document:\n{document_text[:6000]}\n\nInstruction: {instruction}\nJSON:"
     )

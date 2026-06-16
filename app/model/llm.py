@@ -30,6 +30,10 @@ class LocalLlm:
             raise ValueError("Planner returned invalid replacements")
         return {str(key): str(value) for key, value in replacements.items()}
 
+    def complete(self, prompt: str) -> str:
+        """Return raw model text for a trusted server-built prompt."""
+        return self._complete(prompt)
+
     def _complete(self, prompt: str) -> str:
         client = self._load_client()
         result = client(prompt, max_tokens=512, temperature=self.config.llm_temperature)
