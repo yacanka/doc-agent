@@ -1,0 +1,9 @@
+{
+  "host": "127.0.0.1",
+  "port": 8000,
+  "model_path": "models/model.gguf",
+  "workspace_root": "workspace",
+  "max_upload_mb": 25,
+  "llm_context_size": 4096,
+  "llm_temperature": 0.1
+}

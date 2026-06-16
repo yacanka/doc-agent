@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.venv/
+workspace/audit.log
+workspace/sessions.json
+workspace/originals/*
+workspace/working/*
+workspace/outputs/*
+!workspace/originals/.gitkeep
+!workspace/working/.gitkeep
+!workspace/outputs/.gitkeep
+models/*.gguf
+wheels/*.whl
