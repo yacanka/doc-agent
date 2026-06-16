@@ -1,4 +1,4 @@
-"""Prompt templates for local document intelligence."""
+"""Strict prompt templates for local document intelligence."""
 from __future__ import annotations
 
 _MAX_DOCUMENT_CONTEXT = 6000

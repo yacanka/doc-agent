@@ -4,6 +4,8 @@
   "model_path": "models/model.gguf",
   "workspace_root": "workspace",
   "max_upload_mb": 25,
-  "llm_context_size": 4096,
-  "llm_temperature": 0.1
+  "context_size": 4096,
+  "threads": 4,
+  "temperature": 0.1,
+  "max_tokens": 512
 }
