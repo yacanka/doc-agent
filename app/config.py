@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 class AppConfig(BaseModel):
@@ -16,8 +16,14 @@ class AppConfig(BaseModel):
     model_path: Path = Path("models/model.gguf")
     workspace_root: Path = Path("workspace")
     max_upload_mb: int = Field(default=25, gt=0, le=200)
-    llm_context_size: int = Field(default=4096, gt=512)
-    llm_temperature: float = Field(default=0.1, ge=0.0, le=1.0)
+    context_size: int = Field(
+        default=4096, gt=512, validation_alias=AliasChoices("context_size", "llm_context_size")
+    )
+    threads: int = Field(default=4, gt=0)
+    temperature: float = Field(
+        default=0.1, ge=0.0, le=1.0, validation_alias=AliasChoices("temperature", "llm_temperature")
+    )
+    max_tokens: int = Field(default=512, gt=0)
 
     @property
     def originals_dir(self) -> Path:
