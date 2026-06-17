@@ -6,6 +6,7 @@ workspace/sessions.json
 workspace/originals/*
 workspace/working/*
 workspace/outputs/*
+workspace/pip-cache/*
 !workspace/originals/.gitkeep
 !workspace/working/.gitkeep
 !workspace/outputs/.gitkeep
