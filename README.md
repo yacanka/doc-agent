@@ -162,21 +162,21 @@ Fix:
 
 ### Dependency setup failure
 
-Symptoms include missing Python, failed wheel downloads, offline installs reporting missing packages, or `llama-cpp-python` reporting `No matching distribution found for scikit-build-core`.
+Symptoms include missing Python, failed wheel downloads, offline installs reporting missing packages, or `llama-cpp-python` reporting `No matching distribution found` for the pinned version.
 
 Cause:
 
 - PyPI can resolve `llama-cpp-python` to a source distribution instead of a ready-made Windows wheel.
 - Source builds require a local C/C++ compiler toolchain such as Microsoft C++ Build Tools; without it, CMake fails with missing `nmake` and compiler errors.
-- The setup now uses the official `llama-cpp-python` CPU wheel index and blocks source archives for this package so offline setup remains compiler-free and reproducible.
+- The setup now uses the official `llama-cpp-python` CPU wheel index and passes `--only-binary=:all:` during download so source archives are not unpacked or built during offline setup.
 
 Fix:
 
 1. Install 64-bit Python 3.10, 3.11, or 3.12 and confirm `py -3 --version` or `python --version` reports one of those versions.
 2. If setup used Python 3.13+ or 3.14, delete `.venv/` so it can be recreated with the supported interpreter.
-3. Re-run `setup_online.bat` with internet access; it removes stale `wheels\llama_cpp_python-*.tar.gz` source archives before downloading dependencies.
-4. Confirm `wheels/` contains a `llama_cpp_python-*.whl` file before moving the project to an offline machine.
-5. If no compatible wheel is available, use the same operating system, Python version, and CPU architecture as the offline target, or install a trusted compiler toolchain and intentionally build a wheel on the connected machine.
+3. Re-run `setup_online.bat` with internet access; it removes stale `wheels\llama_cpp_python-*.tar.gz` source archives and downloads binary wheels only.
+4. Confirm `wheels/` contains a `llama_cpp_python-0.3.30-*.whl` file before moving the project to an offline machine.
+5. If no compatible wheel is available for the pinned version, either move to another pinned version that exists in the configured wheel index for your Python/CPU platform, or install a trusted compiler toolchain and intentionally build a wheel on the connected machine.
 6. Delete and recreate `.venv/` only after preserving `wheels/` and the model file.
 7. Review the exact package named in the pip error and add a compatible wheel to `wheels/` if needed.
 
