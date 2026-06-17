@@ -162,16 +162,23 @@ Fix:
 
 ### Dependency setup failure
 
-Symptoms include missing Python, failed wheel downloads, or offline installs reporting missing packages.
+Symptoms include missing Python, failed wheel downloads, offline installs reporting missing packages, or `llama-cpp-python` reporting `No matching distribution found for scikit-build-core`.
+
+Cause:
+
+- Some platforms receive a `llama-cpp-python` source distribution instead of a ready-made wheel.
+- Pip then creates an isolated build environment and must install the source build backend from the local `wheels/` directory.
+- The pinned dependency set includes `scikit-build-core`, `cmake`, and `ninja` so `setup_online.bat` downloads those build wheels during the connected setup phase.
 
 Fix:
 
 1. Install Python 3.10, 3.11, or 3.12 and confirm `py -3 --version` or `python --version` reports one of those versions.
 2. If setup used Python 3.13+ or 3.14, delete `.venv/` so it can be recreated with the supported interpreter.
-3. Re-run `setup_online.bat` with internet access.
-4. If a package has no compatible wheel, use the same operating system, Python version, and CPU architecture as the offline target.
-5. Delete and recreate `.venv/` only after preserving `wheels/` and the model file.
-6. Review the exact package named in the pip error and add a compatible wheel to `wheels/` if needed.
+3. Delete any stale `wheels\llama_cpp_python-*.tar.gz` only if it was downloaded for the wrong Python version or CPU architecture.
+4. Re-run `setup_online.bat` with internet access so `wheels/` is repopulated with both runtime dependencies and source-build backend wheels.
+5. If a package has no compatible wheel, use the same operating system, Python version, and CPU architecture as the offline target.
+6. Delete and recreate `.venv/` only after preserving `wheels/` and the model file.
+7. Review the exact package named in the pip error and add a compatible wheel to `wheels/` if needed.
 
 
 ### `pydantic-core` metadata or Rust download certificate failure
