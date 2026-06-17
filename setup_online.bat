@@ -37,8 +37,12 @@ set "PIP_CACHE_DIR=%WORKSPACE_DIR%\pip-cache"
 set "PYTHONPYCACHEPREFIX=%WORKSPACE_DIR%\pycache"
 
 python -m pip install --upgrade pip || exit /b 1
+echo Removing stale llama-cpp-python source archives from %WHEELS_DIR%...
+del /q "%WHEELS_DIR%\llama_cpp_python-*.tar.gz" >nul 2>nul
+
 echo Downloading dependency wheels into %WHEELS_DIR%...
-python -m pip download --dest "%WHEELS_DIR%" --requirement "%REQUIREMENTS_FILE%" || exit /b 1
+python -m pip download --only-binary=:all: --dest "%WHEELS_DIR%" --requirement "%REQUIREMENTS_FILE%" || exit /b 1
+call :ensure_llama_cpp_python_wheel || exit /b 1
 
 echo Installing dependencies from local wheels only...
 python -m pip install --no-index --find-links "%WHEELS_DIR%" --requirement "%REQUIREMENTS_FILE%" || exit /b 1
@@ -89,6 +93,14 @@ if errorlevel 1 (
 )
 echo Detected supported Python version: %PYTHON_VERSION%
 exit /b 0
+
+:ensure_llama_cpp_python_wheel
+if exist "%WHEELS_DIR%\llama_cpp_python-*.whl" exit /b 0
+echo ERROR: A prebuilt llama-cpp-python wheel was not downloaded.
+echo The project requires a wheel from the configured llama-cpp-python CPU wheel index.
+echo Source builds require Microsoft C++ Build Tools and are intentionally blocked for offline setup.
+echo Confirm Python is 3.10, 3.11, or 3.12 on 64-bit Windows, then re-run setup_online.bat.
+exit /b 1
 
 :resolve_model_path
 for /f "usebackq delims=" %%I in (`python -c "import json, pathlib; p=pathlib.Path('config.json'); d=json.loads(p.read_text(encoding='utf-8')) if p.exists() else {}; print(d.get('model_path','models/model.gguf'))"`) do set "CONFIGURED_MODEL_PATH=%%I"
