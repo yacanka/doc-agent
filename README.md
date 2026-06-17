@@ -17,7 +17,7 @@ Offline Document Agent is a local-first FastAPI application for private document
 
 Run this once on a connected Windows machine before offline use.
 
-1. Install Python 3 if it is not already available as `py -3` or `python`.
+1. Install Python 3.10, 3.11, or 3.12 if a supported interpreter is not already available as `py -3` or `python`. Python 3.13+ is not currently supported by the pinned Windows dependency set.
 2. Copy or download a trusted GGUF model to the path configured in `config.json`; the default is `models/model.gguf`.
 3. Open Command Prompt in the project root.
 4. Run:
@@ -26,7 +26,7 @@ Run this once on a connected Windows machine before offline use.
    setup_online.bat
    ```
 
-During setup, the script creates `.venv/`, downloads wheels into `wheels/`, installs from that local cache, creates required directories, verifies the configured model, and writes `workspace/setup_complete.json`.
+During setup, the script prefers Python 3.12, then 3.11, then 3.10; rejects unsupported interpreters; creates `.venv/`; downloads wheels into `wheels/`; installs from that local cache; creates required directories; verifies the configured model; and writes `workspace/setup_complete.json`.
 
 Optional model download:
 
@@ -166,11 +166,30 @@ Symptoms include missing Python, failed wheel downloads, or offline installs rep
 
 Fix:
 
-1. Install a supported Python 3 release and confirm `py -3 --version` or `python --version` works.
-2. Re-run `setup_online.bat` with internet access.
-3. If a package has no compatible wheel, use the same operating system, Python version, and CPU architecture as the offline target.
-4. Delete and recreate `.venv/` only after preserving `wheels/` and the model file.
-5. Review the exact package named in the pip error and add a compatible wheel to `wheels/` if needed.
+1. Install Python 3.10, 3.11, or 3.12 and confirm `py -3 --version` or `python --version` reports one of those versions.
+2. If setup used Python 3.13+ or 3.14, delete `.venv/` so it can be recreated with the supported interpreter.
+3. Re-run `setup_online.bat` with internet access.
+4. If a package has no compatible wheel, use the same operating system, Python version, and CPU architecture as the offline target.
+5. Delete and recreate `.venv/` only after preserving `wheels/` and the model file.
+6. Review the exact package named in the pip error and add a compatible wheel to `wheels/` if needed.
+
+
+### `pydantic-core` metadata or Rust download certificate failure
+
+Symptoms include `Preparing metadata (pyproject.toml) ... error`, `pydantic-core`, `Python reports SOABI: cp314-win_amd64`, or an attempted Rust download that fails with `CERTIFICATE_VERIFY_FAILED`.
+
+Cause:
+
+- The setup is running on Python 3.14. The pinned dependency set expects prebuilt Windows wheels for supported Python versions.
+- Because a compatible wheel is not available for Python 3.14, pip falls back to building `pydantic-core` from source. That build path requires Rust and may try to download `rustup-init.exe`, which can fail behind corporate TLS interception or with a missing local certificate chain.
+
+Fix:
+
+1. Install Python 3.12 for Windows from a trusted source.
+2. Open a new Command Prompt and verify `py -3.12 --version`.
+3. Delete the existing `.venv/` directory created with Python 3.14.
+4. Re-run setup with the supported interpreter first on `PATH`, or run `py -3.12 -m venv .venv` before `setup_online.bat`.
+5. Do not bypass TLS verification. If your network intercepts TLS, install the organization-approved root certificate instead.
 
 ### Unsupported document operations
 

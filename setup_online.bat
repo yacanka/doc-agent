@@ -24,6 +24,7 @@ call :ensure_directory "%WORKSPACE_DIR%" || exit /b 1
 
 call :find_python || exit /b 1
 echo Using Python command: %PYTHON_CMD%
+call :check_python_version "%PYTHON_CMD%" || exit /b 1
 
 if not exist "%VENV_DIR%\Scripts\python.exe" (
     echo Creating project-local virtual environment...
@@ -31,6 +32,7 @@ if not exist "%VENV_DIR%\Scripts\python.exe" (
 )
 
 call "%VENV_DIR%\Scripts\activate.bat" || exit /b 1
+call :check_python_version "python" || exit /b 1
 set "PIP_CACHE_DIR=%WORKSPACE_DIR%\pip-cache"
 set "PYTHONPYCACHEPREFIX=%WORKSPACE_DIR%\pycache"
 
@@ -53,9 +55,19 @@ if not exist "%~1" mkdir "%~1"
 exit /b %ERRORLEVEL%
 
 :find_python
-py -3 --version >nul 2>nul
+py -3.12 --version >nul 2>nul
 if not errorlevel 1 (
-    set "PYTHON_CMD=py -3"
+    set "PYTHON_CMD=py -3.12"
+    exit /b 0
+)
+py -3.11 --version >nul 2>nul
+if not errorlevel 1 (
+    set "PYTHON_CMD=py -3.11"
+    exit /b 0
+)
+py -3.10 --version >nul 2>nul
+if not errorlevel 1 (
+    set "PYTHON_CMD=py -3.10"
     exit /b 0
 )
 python --version >nul 2>nul
@@ -63,8 +75,20 @@ if not errorlevel 1 (
     set "PYTHON_CMD=python"
     exit /b 0
 )
-echo ERROR: Python 3 was not found. Install Python 3 and re-run this script.
+echo ERROR: Python 3.10, 3.11, or 3.12 was not found. Install Python 3.12 and re-run this script.
 exit /b 1
+
+:check_python_version
+for /f "usebackq delims=" %%I in (`%~1 -c "import sys; version=sys.version_info; print(f'{version.major}.{version.minor}.{version.micro}'); raise SystemExit(0 if version.major == 3 and 10 <= version.minor <= 12 else 1)"`) do set "PYTHON_VERSION=%%I"
+if errorlevel 1 (
+    echo ERROR: Unsupported Python version: %PYTHON_VERSION%
+    echo This project currently supports Python 3.10, 3.11, or 3.12 on Windows.
+    echo Python 3.13+ and 3.14 can force source builds for packages such as pydantic-core and llama-cpp-python.
+    echo Install Python 3.12 from python.org, delete .venv, and re-run setup_online.bat.
+    exit /b 1
+)
+echo Detected supported Python version: %PYTHON_VERSION%
+exit /b 0
 
 :resolve_model_path
 for /f "usebackq delims=" %%I in (`python -c "import json, pathlib; p=pathlib.Path('config.json'); d=json.loads(p.read_text(encoding='utf-8')) if p.exists() else {}; print(d.get('model_path','models/model.gguf'))"`) do set "CONFIGURED_MODEL_PATH=%%I"
