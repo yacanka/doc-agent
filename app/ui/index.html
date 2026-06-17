@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Offline Document Agent</title>
+  <link rel="stylesheet" href="/ui/styles.css">
+</head>
+<body>
+  <header>
+    <div><p class="eyebrow">Local only</p><h1>Offline Document Agent</h1></div>
+    <span id="status" class="status">Checking readiness…</span>
+  </header>
+  <main>
+    <section class="card upload" id="dropZone">
+      <h2>1. Upload one document</h2>
+      <p>Drag a DOCX file here or choose one from disk.</p>
+      <input id="fileInput" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+    </section>
+    <section class="card info"><h2>Document info</h2><dl id="documentInfo"><dt>Status</dt><dd>No document loaded</dd></dl></section>
+    <section class="card chat"><h2>Chat</h2><div id="messages" class="messages"></div><textarea id="prompt" placeholder="Ask a question or describe a replacement..."></textarea><div class="row"><button id="askButton">Ask</button><button id="previewButton">Preview operation</button></div></section>
+    <section class="card preview"><h2>Operation preview</h2><pre id="preview">No operation planned.</pre><div class="row"><button id="applyButton" disabled>Apply</button><button id="cancelButton">Cancel</button></div></section>
+    <section class="card output"><h2>Output</h2><a id="downloadLink" hidden download>Download output</a><button id="folderButton">Open output folder</button><p id="outputStatus">No output yet.</p></section>
+  </main>
+  <script src="/ui/app.js" defer></script>
+</body>
+</html>
