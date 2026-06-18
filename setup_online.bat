@@ -37,12 +37,12 @@ set "PIP_CACHE_DIR=%WORKSPACE_DIR%\pip-cache"
 set "PYTHONPYCACHEPREFIX=%WORKSPACE_DIR%\pycache"
 
 python -m pip install --upgrade pip || exit /b 1
-echo Removing stale llama-cpp-python source archives from %WHEELS_DIR%...
-del /q "%WHEELS_DIR%\llama_cpp_python-*.tar.gz" >nul 2>nul
+echo Removing stale model backend source archives from %WHEELS_DIR%...
+del /q "%WHEELS_DIR%\gpt4all-*.tar.gz" >nul 2>nul
 
 echo Downloading dependency wheels into %WHEELS_DIR%...
-python -m pip download --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu --only-binary=:all: --prefer-binary --dest "%WHEELS_DIR%" --requirement "%REQUIREMENTS_FILE%" || exit /b 1
-call :ensure_llama_cpp_python_wheel || exit /b 1
+python -m pip download --only-binary=:all: --prefer-binary --dest "%WHEELS_DIR%" --requirement "%REQUIREMENTS_FILE%" || exit /b 1
+call :ensure_gpt4all_wheel || exit /b 1
 
 echo Installing dependencies from local wheels only...
 python -m pip install --no-index --find-links "%WHEELS_DIR%" --requirement "%REQUIREMENTS_FILE%" || exit /b 1
@@ -87,18 +87,17 @@ for /f "usebackq delims=" %%I in (`%~1 -c "import sys; version=sys.version_info;
 if errorlevel 1 (
     echo ERROR: Unsupported Python version: %PYTHON_VERSION%
     echo This project currently supports Python 3.10, 3.11, or 3.12 on Windows.
-    echo Python 3.13+ and 3.14 can force source builds for packages such as pydantic-core and llama-cpp-python.
+    echo Python 3.13+ and 3.14 can force source builds for native packages.
     echo Install Python 3.12 from python.org, delete .venv, and re-run setup_online.bat.
     exit /b 1
 )
 echo Detected supported Python version: %PYTHON_VERSION%
 exit /b 0
 
-:ensure_llama_cpp_python_wheel
-if exist "%WHEELS_DIR%\llama_cpp_python-*.whl" exit /b 0
-echo ERROR: A prebuilt llama-cpp-python wheel was not downloaded.
-echo The project requires a wheel from the configured llama-cpp-python CPU wheel index.
-echo Source builds require Microsoft C++ Build Tools and are intentionally blocked for offline setup.
+:ensure_gpt4all_wheel
+if exist "%WHEELS_DIR%\gpt4all-*.whl" exit /b 0
+echo ERROR: A prebuilt gpt4all wheel was not downloaded.
+echo Source builds require native compiler tooling and are intentionally blocked for offline setup.
 echo Confirm Python is 3.10, 3.11, or 3.12 on 64-bit Windows, then re-run setup_online.bat.
 exit /b 1
 
