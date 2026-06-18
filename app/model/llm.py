@@ -1,4 +1,4 @@
-"""llama-cpp-python adapter with deterministic local inference."""
+"""GPT4All adapter with deterministic local inference."""
 from __future__ import annotations
 
 import json
@@ -10,7 +10,7 @@ from app.model.prompts import planning_prompt, qa_prompt
 
 
 class LocalLlm:
-    """Lazy llama.cpp wrapper for local-only QA and operation planning."""
+    """Lazy GPT4All wrapper for local-only QA and operation planning."""
 
     def __init__(self, config: AppConfig) -> None:
         """Store configuration and defer model loading until first use."""
@@ -35,8 +35,7 @@ class LocalLlm:
 
     def _complete(self, prompt: str) -> str:
         client = self._load_client()
-        result = client(prompt, max_tokens=self.config.max_tokens, temperature=self.config.temperature)
-        return str(result["choices"][0]["text"])
+        return str(client.generate(prompt, max_tokens=self.config.max_tokens, temp=self.config.temperature))
 
     def _load_client(self) -> Any:
         if self._client is not None:
@@ -44,10 +43,14 @@ class LocalLlm:
         model_path = Path(self.config.model_path)
         if not model_path.is_file():
             raise FileNotFoundError(f"Local GGUF model file not found: {model_path}")
-        from llama_cpp import Llama
-
-        self._client = Llama(
-            model_path=str(model_path), n_ctx=self.config.context_size, n_threads=self.config.threads
+        self._client = _gpt4all_class()(
+            model_name=model_path.name,
+            model_path=str(model_path.parent),
+            allow_download=False,
+            n_threads=self.config.threads,
+            n_ctx=self.config.context_size,
+            device="cpu",
+            verbose=False,
         )
         return self._client
 
@@ -58,3 +61,10 @@ def _json_object(text: str) -> str:
     if start < 0 or end < start:
         raise ValueError("Planner did not return JSON")
     return text[start : end + 1]
+
+
+def _gpt4all_class() -> Any:
+    """Return the GPT4All class only when model loading is required."""
+    from gpt4all import GPT4All
+
+    return GPT4All
