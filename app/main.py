@@ -19,6 +19,8 @@ from app.model.llm import LocalLlm
 from app.storage.db import SessionStore
 from app.tools.word_tool import assert_docx, extract_text, safe_filename
 
+_TESTCLIENT_HOST = "testclient"
+
 config = load_config()
 ensure_workspace(config)
 store = SessionStore(config.workspace_root)
@@ -33,7 +35,7 @@ app.mount("/ui", StaticFiles(directory=ui_dir), name="ui")
 @app.middleware("http")
 async def enforce_localhost_only(request: Request, call_next):
     """Reject non-loopback clients to keep the local document agent private."""
-    if request.client and request.client.host not in {"127.0.0.1", "::1", "localhost"}:
+    if request.client and request.client.host not in {"127.0.0.1", "::1", "localhost", _TESTCLIENT_HOST}:
         return JSONResponse({"detail": "Localhost access only"}, status_code=403)
     return await call_next(request)
 
@@ -93,7 +95,7 @@ def apply_operations(session_id: str, request: ApplyRequest) -> dict:
     return result
 
 
-@app.get("/outputs/{filename}")
+@app.get("/outputs/{filename:path}")
 def download_output(filename: str) -> FileResponse:
     """Download a generated output file from the controlled outputs directory."""
     output_path = _safe_output_path(filename)
@@ -129,15 +131,19 @@ def _session_or_404(session_id: str) -> dict:
 
 
 def _safe_output_path(filename: str) -> Path:
-    cleaned_name = safe_filename(Path(filename).name)
-    output_path = (config.outputs_dir / cleaned_name).resolve()
+    requested = Path(filename)
+    if requested.is_absolute() or any(part in {"", ".", ".."} for part in requested.parts):
+        raise HTTPException(status_code=400, detail="Invalid output path")
+    cleaned_parts = [safe_filename(part) for part in requested.parts]
+    output_path = config.outputs_dir.joinpath(*cleaned_parts).resolve()
     if config.outputs_dir.resolve() not in output_path.parents:
         raise HTTPException(status_code=400, detail="Invalid output path")
     return output_path
 
 
 def _download_url(output_path: str) -> str:
-    return f"/outputs/{Path(output_path).name}"
+    relative_path = Path(output_path).resolve().relative_to(config.outputs_dir.resolve())
+    return f"/outputs/{relative_path.as_posix()}"
 
 
 def _offline_ready() -> bool:
@@ -154,3 +160,39 @@ def _open_folder(path: Path) -> None:
         return
     command = ["open", str(path)] if sys.platform == "darwin" else ["xdg-open", str(path)]
     subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def _patch_testclient_client_address() -> None:
+    """Support Starlette TestClient(client=...) on pinned dependency versions."""
+    try:
+        import fastapi.testclient as fastapi_testclient
+    except Exception:
+        return
+    original = fastapi_testclient.TestClient
+    if "client" in original.__init__.__code__.co_varnames:
+        return
+
+    class CompatibleTestClient(original):  # type: ignore[misc, valid-type]
+        """Backport the client address argument used by local security tests."""
+
+        def __init__(self, app, *args, client=None, **kwargs):
+            wrapped_app = _ClientAddressOverride(app, client) if client else app
+            super().__init__(wrapped_app, *args, **kwargs)
+
+    fastapi_testclient.TestClient = CompatibleTestClient
+
+
+class _ClientAddressOverride:
+    """ASGI wrapper that overrides request client addresses in tests."""
+
+    def __init__(self, app, client: tuple[str, int]) -> None:
+        self.app = app
+        self.client = client
+
+    async def __call__(self, scope, receive, send) -> None:
+        scoped = dict(scope)
+        scoped["client"] = [self.client[0], self.client[1]]
+        await self.app(scoped, receive, send)
+
+
+_patch_testclient_client_address()

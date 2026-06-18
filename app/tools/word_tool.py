@@ -35,7 +35,7 @@ def safe_filename(filename: str) -> str:
 def assert_docx(filename: str, content_type: str | None) -> None:
     """Validate that an upload is a DOCX file."""
     allowed = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    valid_type = content_type in {None, allowed}
+    valid_type = content_type in {None, allowed, "application/octet-stream"}
     if not filename.lower().endswith(".docx") or not valid_type:
         raise ValueError("Only DOCX uploads are supported")
 
@@ -60,9 +60,9 @@ def replace_text_preserve_style(source_path: Path, target: str, replacement: str
     destination = _timestamped_copy_path(output_path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source_path, destination)
-    run_count = _replace_single_run_text(destination, target, replacement)
-    xml_count = _replace_xml_text(destination, target, replacement)
-    changed_count = run_count + xml_count
+    changed_count = _replace_xml_text(destination, target, replacement, split_only=True)
+    if not changed_count:
+        changed_count = _replace_xml_text(destination, target, replacement)
     return ToolResult(destination, changed_count, f"Replaced {changed_count} occurrence(s)")
 
 
@@ -71,7 +71,6 @@ def replace_text(source: Path, destination: Path, replacements: dict[str, str]) 
     shutil.copy2(source, destination)
     count = 0
     for target, replacement in replacements.items():
-        count += _replace_single_run_text(destination, target, replacement)
         count += _replace_xml_text(destination, target, replacement)
     return count
 
@@ -95,40 +94,9 @@ def _timestamped_copy_path(output_path: Path) -> Path:
     return output_path.parent / f"{stamp}_{name}"
 
 
-def _replace_single_run_text(path: Path, target: str, replacement: str) -> int:
-    document = Document(path)
-    count = _replace_story_runs(document.paragraphs, document.tables, target, replacement)
-    for section in document.sections:
-        count += _replace_story_runs(section.header.paragraphs, section.header.tables, target, replacement)
-        count += _replace_story_runs(section.footer.paragraphs, section.footer.tables, target, replacement)
-    if count:
-        document.save(path)
-    return count
-
-
-def _replace_story_runs(paragraphs: list, tables: list, target: str, replacement: str) -> int:
-    count = _replace_paragraph_runs(paragraphs, target, replacement)
-    for table in tables:
-        for row in table.rows:
-            for cell in row.cells:
-                count += _replace_story_runs(cell.paragraphs, cell.tables, target, replacement)
-    return count
-
-
-def _replace_paragraph_runs(paragraphs: list, target: str, replacement: str) -> int:
-    count = 0
-    for paragraph in paragraphs:
-        for run in paragraph.runs:
-            occurrences = run.text.count(target)
-            if occurrences:
-                run.text = run.text.replace(target, replacement)
-                count += occurrences
-    return count
-
-
-def _replace_xml_text(path: Path, target: str, replacement: str) -> int:
+def _replace_xml_text(path: Path, target: str, replacement: str, split_only: bool = False) -> int:
     parts = _read_zip(path)
-    changed, total = _replace_xml_parts(parts, target, replacement)
+    changed, total = _replace_xml_parts(parts, target, replacement, split_only)
     if changed:
         _write_zip(path, parts)
     return total
@@ -145,39 +113,55 @@ def _write_zip(path: Path, parts: dict[str, bytes]) -> None:
             archive.writestr(name, content)
 
 
-def _replace_xml_parts(parts: dict[str, bytes], target: str, replacement: str) -> tuple[bool, int]:
+def _replace_xml_parts(
+    parts: dict[str, bytes], target: str, replacement: str, split_only: bool
+) -> tuple[bool, int]:
     total = 0
     changed = False
     for name, content in list(parts.items()):
         if not _XML_PARTS.match(name):
             continue
-        new_content, count = _replace_xml_part(content, target, replacement)
+        new_content, count = _replace_xml_part(content, target, replacement, split_only)
         parts[name] = new_content
         total += count
         changed = changed or bool(count)
     return changed, total
 
 
-def _replace_xml_part(content: bytes, target: str, replacement: str) -> tuple[bytes, int]:
+def _replace_xml_part(content: bytes, target: str, replacement: str, split_only: bool) -> tuple[bytes, int]:
     parser = etree.XMLParser(resolve_entities=False, remove_blank_text=False)
     root = etree.fromstring(content, parser=parser)
-    count = sum(_replace_paragraph_xml(paragraph, target, replacement) for paragraph in root.iter(_PARAGRAPH_TAG))
+    count = sum(
+        _replace_paragraph_xml(paragraph, target, replacement, split_only) for paragraph in root.iter(_PARAGRAPH_TAG)
+    )
     if not count:
         return content, 0
     return etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True), count
 
 
-def _replace_paragraph_xml(paragraph: etree._Element, target: str, replacement: str) -> int:
+def _replace_paragraph_xml(paragraph: etree._Element, target: str, replacement: str, split_only: bool) -> int:
     text_elements = [element for element in paragraph.iter(_TEXT_TAG)]
     full_text = "".join(element.text or "" for element in text_elements)
     count = 0
     position = full_text.find(target)
     while position >= 0:
-        _replace_text_slice(text_elements, position, position + len(target), replacement)
-        count += 1
+        end = position + len(target)
+        if not split_only or _spans_multiple_elements(text_elements, position, end):
+            _replace_text_slice(text_elements, position, end, replacement)
+            count += 1
         full_text = "".join(element.text or "" for element in text_elements)
         position = full_text.find(target, position + len(replacement))
     return count
+
+
+def _spans_multiple_elements(text_elements: list, start: int, end: int) -> bool:
+    touched = 0
+    cursor = 0
+    for element in text_elements:
+        next_cursor = cursor + len(element.text or "")
+        touched += int(next_cursor > start and cursor < end)
+        cursor = next_cursor
+    return touched > 1
 
 
 def _replace_text_slice(text_elements: list, start: int, end: int, replacement: str) -> None:

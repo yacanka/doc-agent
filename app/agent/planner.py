@@ -11,7 +11,7 @@ from app.model.llm import LocalLlm
 from app.model.prompts import planning_prompt
 
 _DESTRUCTIVE_TERMS = ("delete", "remove", "erase", "wipe", "drop", "destroy", "clear")
-_VAGUE_TARGETS = ("all", "everything", "content", "document", "file", "it", "this")
+_VAGUE_TARGETS = ("all", "everything", "content", "document", "it", "this")
 
 
 class Planner:

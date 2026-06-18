@@ -2,6 +2,7 @@ __pycache__/
 *.py[cod]
 .venv/
 workspace/audit.log
+workspace/*.sqlite3
 workspace/sessions.json
 workspace/originals/*
 workspace/working/*
