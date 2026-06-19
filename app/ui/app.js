@@ -72,13 +72,17 @@ async function askQuestion() {
 async function streamAnswer(question, message) {
   elements.developerStream.textContent = '';
   await withLoading('Model is answering…', async () => {
-    const response = await fetch(localPath(`/sessions/${state.sessionId}/questions/stream`), streamRequest(question));
-    if (!response.ok || !response.body) throw new Error((await parseResponse(response)).detail || 'Stream failed');
-    await readEventStream(response.body, event => handleStreamEvent(event, message));
+    const response = await fetchEventStream(`/sessions/${state.sessionId}/questions/stream`, { question });
+    await readEventStream(response.body, event => handleAnswerEvent(event, message));
   });
 }
-function streamRequest(question) {
-  return { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question }) };
+async function fetchEventStream(path, payload) {
+  const response = await fetch(localPath(path), streamRequest(payload));
+  if (!response.ok || !response.body) throw new Error((await parseResponse(response)).detail || 'Stream failed');
+  return response;
+}
+function streamRequest(payload) {
+  return { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) };
 }
 async function readEventStream(body, onEvent) {
   const reader = body.getReader();
@@ -101,19 +105,26 @@ function parseEvent(frame) {
   const data = frame.match(/^data: (.+)$/m)?.[1] || '{}';
   return { event, data: JSON.parse(data) };
 }
-function handleStreamEvent({ event, data }, message) {
+function handleAnswerEvent({ event, data }, message) {
   if (event === 'error') throw new Error(data.message || 'Model stream failed');
   if (event !== 'token') return;
   message.textContent += data.text;
   appendDeveloperChunk(data.text);
 }
+function handlePlanEvent({ event, data }) {
+  if (event === 'error') throw new Error(data.message || 'Plan stream failed');
+  if (event === 'token') appendDeveloperChunk(data.text);
+  if (event === 'replacements') setPreview(data.items);
+}
 async function previewOperation() {
   if (!state.sessionId) return setBusy('Upload a document first.');
   const instruction = elements.prompt.value.trim();
   if (!instruction) return;
+  elements.developerStream.textContent = '';
+  setPreview(null);
   await withLoading('Planning operation…', async () => {
-    const data = await requestJson(`/sessions/${state.sessionId}/plan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instruction }) });
-    setPreview(data.replacements);
+    const response = await fetchEventStream(`/sessions/${state.sessionId}/plan/stream`, { instruction });
+    await readEventStream(response.body, handlePlanEvent);
   });
 }
 async function applyOperation() {

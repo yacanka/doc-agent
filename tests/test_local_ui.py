@@ -21,7 +21,7 @@ def test_ui_static_entrypoint_contains_required_panels() -> None:
 def test_ui_contains_streaming_and_loading_hooks() -> None:
     content = Path("app/ui/app.js").read_text(encoding="utf-8")
 
-    for expected in ["questions/stream", "readEventStream", "setLoading", "developerStream"]:
+    for expected in ["questions/stream", "plan/stream", "readEventStream", "setLoading", "developerStream"]:
         assert expected in content
 
 
@@ -99,6 +99,30 @@ def test_question_stream_endpoint_emits_sse(client, monkeypatch, tmp_path) -> No
     assert "event: token" in response.text
     assert 'data: {"text": "Hel"}' in response.text
     assert "event: done" in response.text
+
+
+def test_plan_stream_endpoint_emits_tokens_and_replacements(client, monkeypatch, tmp_path) -> None:
+    from app.main import store
+
+    source = tmp_path / "sample.docx"
+    from docx import Document
+    document = Document()
+    document.add_paragraph("Hello Alice")
+    document.save(source)
+    session = store.create_session("sample.docx", source)
+
+    class FakeLlm:
+        def stream_complete(self, prompt):
+            yield 'Sure: {"replacements":{"Alice":"Bob"}}'
+
+    monkeypatch.setattr("app.main.llm", FakeLlm())
+
+    response = client.post(f"/sessions/{session['id']}/plan/stream", json={"instruction": "Replace Alice"})
+
+    assert response.status_code == 200
+    assert "event: token" in response.text
+    assert "event: replacements" in response.text
+    assert 'data: {"items": {"Alice": "Bob"}}' in response.text
 
 
 def test_plan_endpoint_returns_422_for_invalid_model_json(client, monkeypatch, tmp_path) -> None:

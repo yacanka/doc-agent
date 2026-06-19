@@ -62,11 +62,20 @@ def _decode_response(response: str | dict[str, Any]) -> dict[str, Any]:
 
 
 def _json_object_text(text: str) -> str:
-    start = text.find("{")
-    end = text.rfind("}")
-    if start < 0 or end < start:
-        raise ValueError("Planner response must contain valid JSON")
-    return text[start : end + 1]
+    decoder = json.JSONDecoder()
+    for start in _object_starts(text):
+        try:
+            _, end = decoder.raw_decode(text[start:])
+            return text[start : start + end]
+        except json.JSONDecodeError:
+            continue
+    raise ValueError("Planner response must contain valid JSON")
+
+
+def _object_starts(text: str):
+    for index, character in enumerate(text):
+        if character == "{":
+            yield index
 
 
 def _legacy_replacement_payload(payload: dict[str, Any]) -> dict[str, Any]:

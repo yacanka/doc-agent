@@ -37,7 +37,7 @@ def test_planner_rejects_malformed_json() -> None:
 
 
 def test_planner_extracts_json_from_model_explanation() -> None:
-    response = 'Sure: {"replacements":{"Alice":"Bob"}} done'
+    response = 'Sure {not json} then {"replacements":{"Alice":"Bob"}} done'
     planner = Planner(DummyLlm(response))
 
     replacements = planner.plan("Replace Alice with Bob", "Hello Alice")

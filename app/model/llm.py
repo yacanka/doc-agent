@@ -147,11 +147,21 @@ def _new_gpt4all_client(model_path: Path, config: AppConfig) -> Any:
 
 
 def _json_object(text: str) -> str:
-    start = text.find("{")
-    end = text.rfind("}")
-    if start < 0 or end < start:
-        raise ValueError("Planner did not return JSON")
-    return text[start : end + 1]
+    """Return the first balanced JSON object embedded in model text."""
+    decoder = json.JSONDecoder()
+    for start in _object_starts(text):
+        try:
+            _, end = decoder.raw_decode(text[start:])
+            return text[start : start + end]
+        except json.JSONDecodeError:
+            continue
+    raise ValueError("Planner did not return JSON")
+
+
+def _object_starts(text: str) -> Iterator[int]:
+    for index, character in enumerate(text):
+        if character == "{":
+            yield index
 
 
 def _gpt4all_class() -> Any:
