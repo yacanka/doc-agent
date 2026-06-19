@@ -22,3 +22,7 @@ dl { display: grid; grid-template-columns: max-content 1fr; gap: .5rem 1rem; }
 dt { font-weight: 700; }
 a { color: #1d4ed8; font-weight: 700; }
 @media (prefers-color-scheme: dark) { body { background: #0f172a; color: #e5e7eb; } .card { background: #182235; border-color: #334155; } .messages { background: #111827; border-color: #334155; } }
+.loading { align-items: center; display: flex; gap: .75rem; margin-top: .75rem; }
+.bar { animation: loading 1s linear infinite; background: linear-gradient(90deg, #93c5fd, #1d4ed8, #93c5fd); border-radius: 999px; height: .65rem; width: 8rem; }
+.developer pre { max-height: 14rem; white-space: pre-wrap; }
+@keyframes loading { from { background-position: 0 0; } to { background-position: 8rem 0; } }

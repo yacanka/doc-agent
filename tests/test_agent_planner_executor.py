@@ -36,6 +36,15 @@ def test_planner_rejects_malformed_json() -> None:
         planner.plan_operations("Replace Alice with Bob", "Hello Alice")
 
 
+def test_planner_extracts_json_from_model_explanation() -> None:
+    response = 'Sure {not json} then {"replacements":{"Alice":"Bob"}} done'
+    planner = Planner(DummyLlm(response))
+
+    replacements = planner.plan("Replace Alice with Bob", "Hello Alice")
+
+    assert replacements == {"Alice": "Bob"}
+
+
 def test_planner_rejects_unknown_tools() -> None:
     planner = Planner(DummyLlm({"operations": [{"action": "replace_text", "tool": "shell", "parameters": {"replacements": {"A": "B"}}}]}))
 
