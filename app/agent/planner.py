@@ -53,12 +53,20 @@ def _decode_response(response: str | dict[str, Any]) -> dict[str, Any]:
     if isinstance(response, dict):
         return response
     try:
-        payload = json.loads(response)
+        payload = json.loads(_json_object_text(response))
     except json.JSONDecodeError as error:
-        raise ValueError("Planner response must be valid JSON") from error
+        raise ValueError("Planner response must contain valid JSON") from error
     if not isinstance(payload, dict):
         raise ValueError("Planner response must be a JSON object")
     return payload
+
+
+def _json_object_text(text: str) -> str:
+    start = text.find("{")
+    end = text.rfind("}")
+    if start < 0 or end < start:
+        raise ValueError("Planner response must contain valid JSON")
+    return text[start : end + 1]
 
 
 def _legacy_replacement_payload(payload: dict[str, Any]) -> dict[str, Any]:

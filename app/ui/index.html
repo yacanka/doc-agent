@@ -18,7 +18,8 @@
       <input id="fileInput" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
     </section>
     <section class="card info"><h2>Document info</h2><dl id="documentInfo"><dt>Status</dt><dd>No document loaded</dd></dl></section>
-    <section class="card chat"><h2>Chat</h2><div id="messages" class="messages"></div><textarea id="prompt" placeholder="Ask a question or describe a replacement..."></textarea><div class="row"><button id="askButton">Ask</button><button id="previewButton">Preview operation</button></div></section>
+    <section class="card chat"><h2>Chat</h2><div id="messages" class="messages"></div><div id="loading" class="loading" hidden><span class="bar"></span><span class="loading-text">Working…</span></div><textarea id="prompt" placeholder="Ask a question or describe a replacement..."></textarea><div class="row"><button id="askButton">Ask</button><button id="previewButton">Preview operation</button></div></section>
+    <section class="card developer"><h2>Developer stream</h2><pre id="developerStream">Waiting for model tokens.</pre></section>
     <section class="card preview"><h2>Operation preview</h2><pre id="preview">No operation planned.</pre><div class="row"><button id="applyButton" disabled>Apply</button><button id="cancelButton">Cancel</button></div></section>
     <section class="card output"><h2>Output</h2><a id="downloadLink" hidden download>Download output</a><button id="folderButton">Open output folder</button><p id="outputStatus">No output yet.</p></section>
   </main>

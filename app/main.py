@@ -1,6 +1,7 @@
 """FastAPI entrypoint for the local document agent."""
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -8,7 +9,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.agent.executor import Executor
@@ -16,6 +17,7 @@ from app.agent.planner import Planner
 from app.agent.schemas import ApplyRequest, PlanRequest, QuestionRequest
 from app.config import ensure_workspace, load_config, public_config
 from app.model.llm import LocalLlm
+from app.model.prompts import qa_prompt
 from app.storage.db import SessionStore
 from app.tools.word_tool import assert_docx, extract_text, safe_filename
 
@@ -75,11 +77,23 @@ def answer_question(session_id: str, request: QuestionRequest) -> dict:
     return {"answer": answer}
 
 
+@app.post("/sessions/{session_id}/questions/stream")
+def stream_answer_question(session_id: str, request: QuestionRequest) -> StreamingResponse:
+    """Stream a document answer as newline-delimited server events."""
+    session = _session_or_404(session_id)
+    document_text = extract_text(Path(session["original_path"]))
+    store.audit("question_stream_started", session_id, {"question": request.question})
+    return StreamingResponse(_answer_events(request.question, document_text), media_type="text/event-stream")
+
+
 @app.post("/sessions/{session_id}/plan")
 def plan_operations(session_id: str, request: PlanRequest) -> dict:
     """Create a JSON text replacement plan for a document session."""
     session = _session_or_404(session_id)
-    replacements = planner.plan(request.instruction, extract_text(Path(session["original_path"])))
+    try:
+        replacements = planner.plan(request.instruction, extract_text(Path(session["original_path"])))
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
     store.audit("plan_created", session_id, {"replacements": replacements})
     return {"replacements": replacements}
 
@@ -121,6 +135,21 @@ async def _save_upload(file: UploadFile) -> Path:
     destination = config.originals_dir / name
     destination.write_bytes(data)
     return destination
+
+
+def _answer_events(question: str, document_text: str):
+    """Yield escaped SSE chunks for browser-visible incremental rendering."""
+    try:
+        for token in llm.stream_complete(qa_prompt(question, document_text)):
+            yield _sse("token", {"text": token})
+        yield _sse("done", {})
+    except Exception as error:
+        yield _sse("error", {"message": str(error)})
+
+
+def _sse(event: str, payload: dict) -> str:
+    """Serialize one Server-Sent Event frame."""
+    return f"event: {event}\ndata: {json.dumps(payload)}\n\n"
 
 
 def _session_or_404(session_id: str) -> dict:
