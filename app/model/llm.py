@@ -16,7 +16,7 @@ Do not add unnecessary detail.
 Stop when the answer is complete.
 """.strip()
 
-STOP_TEXTS = ("<|im_end|>", "<|endoftext|>", "\n<|im_start|>user", "\nUser:", "\nKullanıcı:")
+STOP_TEXTS = ("###", "<|im_end|>", "<|endoftext|>", "\n<|im_start|>user", "\nUser:", "\nKullanıcı:")
 
 
 class StopCallback(Protocol):
@@ -60,7 +60,7 @@ class LocalLlm:
     def _stream_complete(self, prompt: str) -> Iterator[str]:
         client = self._load_client()
         callback = make_stop_callback()
-        with client.chat_session(system_message=SYSTEM_PROMPT):
+        with client.chat_session(system_prompt=SYSTEM_PROMPT):
             stream = client.generate(prompt, streaming=True, callback=callback, **self._generation_options())
             yield from _visible_tokens(stream)
 
