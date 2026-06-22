@@ -1,4 +1,4 @@
-const state = { sessionId: null, replacements: null };
+const state = { sessionId: null, replacements: null, busy: false };
 const baseUrl = window.location.origin;
 const elements = {
   status: document.querySelector('#status'), dropZone: document.querySelector('#dropZone'),
@@ -13,6 +13,14 @@ const elements = {
 
 function localPath(path) { return new URL(path, baseUrl).toString(); }
 function setBusy(message) { elements.outputStatus.textContent = message; }
+function setControlsDisabled(disabled) {
+  state.busy = disabled;
+  elements.askButton.disabled = disabled;
+  elements.previewButton.disabled = disabled;
+  elements.folderButton.disabled = disabled;
+  elements.fileInput.disabled = disabled;
+  elements.applyButton.disabled = disabled || !state.replacements;
+}
 function setLoading(active, message = 'Working…') {
   elements.loading.hidden = !active;
   elements.loading.querySelector('.loading-text').textContent = message;
@@ -31,7 +39,7 @@ function appendDeveloperChunk(text) {
 function setPreview(replacements) {
   state.replacements = replacements;
   elements.preview.textContent = replacements ? JSON.stringify(replacements, null, 2) : 'No operation planned.';
-  elements.applyButton.disabled = !replacements;
+  elements.applyButton.disabled = state.busy || !replacements;
 }
 function renderDocumentInfo(data) {
   elements.documentInfo.innerHTML = `<dt>File</dt><dd>${data.filename}</dd><dt>Session</dt><dd>${data.session_id}</dd><dt>Characters</dt><dd>${data.text_length}</dd><dt>Preview</dt><dd>${data.text_preview || 'No text preview'}</dd>`;
@@ -53,6 +61,7 @@ async function checkStatus() {
 }
 async function uploadFile(file) {
   if (!file) return;
+  if (!isDocx(file)) return setBusy('Please choose a DOCX document.');
   const formData = new FormData();
   formData.append('file', file);
   await withLoading('Uploading document…', async () => {
@@ -60,6 +69,7 @@ async function uploadFile(file) {
     state.sessionId = data.session_id;
     renderDocumentInfo(data);
     setPreview(null);
+    setBusy('Document loaded. Ask a question or preview an operation.');
   });
 }
 async function askQuestion() {
@@ -139,9 +149,13 @@ async function openOutputFolder() {
   const data = await requestJson('/output-folder', { method: 'POST' });
   setBusy(data.supported ? `Opened ${data.path}` : data.message);
 }
+function isDocx(file) {
+  return file.name.toLowerCase().endsWith('.docx');
+}
 async function withLoading(message, work) {
-  try { setLoading(true, message); await work(); } catch (error) { setBusy(error.message); }
-  finally { setLoading(false); }
+  try { setControlsDisabled(true); setLoading(true, message); await work(); }
+  catch (error) { setBusy(error.message); }
+  finally { setLoading(false); setControlsDisabled(false); }
 }
 elements.fileInput.addEventListener('change', event => uploadFile(event.target.files[0]));
 elements.dropZone.addEventListener('dragover', event => { event.preventDefault(); elements.dropZone.classList.add('dragging'); });
@@ -151,5 +165,8 @@ elements.askButton.addEventListener('click', askQuestion);
 elements.previewButton.addEventListener('click', previewOperation);
 elements.applyButton.addEventListener('click', applyOperation);
 elements.cancelButton.addEventListener('click', () => setPreview(null));
+elements.prompt.addEventListener('keydown', event => {
+  if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') askQuestion();
+});
 elements.folderButton.addEventListener('click', openOutputFolder);
 checkStatus().catch(error => { elements.status.textContent = error.message; elements.status.className = 'status warn'; });
