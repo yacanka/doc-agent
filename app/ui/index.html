@@ -7,21 +7,34 @@
   <link rel="stylesheet" href="/ui/styles.css">
 </head>
 <body>
-  <header>
-    <div><p class="eyebrow">Local only</p><h1>Offline Document Agent</h1></div>
-    <span id="status" class="status">Checking readiness…</span>
-  </header>
-  <main>
-    <section class="card upload" id="dropZone">
-      <h2>1. Upload one document</h2>
-      <p>Drag a DOCX file here or choose one from disk.</p>
-      <input id="fileInput" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+  <header class="hero">
+    <nav class="topbar" aria-label="Application status">
+      <div class="brand"><span class="brand-mark">DA</span><span>Offline Document Agent</span></div>
+      <span id="status" class="status">Checking readiness…</span>
+    </nav>
+    <section class="hero-content" aria-labelledby="pageTitle">
+      <p class="eyebrow">Local only · Private document workspace</p>
+      <h1 id="pageTitle">Analyze, preview, and safely edit documents offline.</h1>
+      <p class="hero-copy">Upload a DOCX, ask precise questions, preview replacements, and export a validated output without sending files outside this machine.</p>
     </section>
-    <section class="card info"><h2>Document info</h2><dl id="documentInfo"><dt>Status</dt><dd>No document loaded</dd></dl></section>
-    <section class="card chat"><h2>Chat</h2><div id="messages" class="messages"></div><div id="loading" class="loading" hidden><span class="bar"></span><span class="loading-text">Working…</span></div><textarea id="prompt" placeholder="Ask a question or describe a replacement..."></textarea><div class="row"><button id="askButton">Ask</button><button id="previewButton">Preview operation</button></div></section>
-    <section class="card developer"><h2>Developer stream</h2><pre id="developerStream">Waiting for model tokens.</pre></section>
-    <section class="card preview"><h2>Operation preview</h2><pre id="preview">No operation planned.</pre><div class="row"><button id="applyButton" disabled>Apply</button><button id="cancelButton">Cancel</button></div></section>
-    <section class="card output"><h2>Output</h2><a id="downloadLink" hidden download>Download output</a><button id="folderButton">Open output folder</button><p id="outputStatus">No output yet.</p></section>
+  </header>
+  <main class="shell">
+    <section class="card upload panel-primary" id="dropZone" aria-labelledby="uploadTitle">
+      <span class="step">1</span><h2 id="uploadTitle">Upload one document</h2>
+      <p>Drag a DOCX file here or choose one from disk.</p>
+      <label class="file-picker" for="fileInput">Choose DOCX<input id="fileInput" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"></label>
+    </section>
+    <section class="card info" aria-labelledby="documentTitle"><h2 id="documentTitle">Document info</h2><dl id="documentInfo"><dt>Status</dt><dd>No document loaded</dd></dl></section>
+    <section class="card chat panel-primary" aria-labelledby="chatTitle">
+      <div class="panel-heading"><span class="step">2</span><h2 id="chatTitle">Chat</h2></div>
+      <div id="messages" class="messages" aria-live="polite"></div>
+      <div id="loading" class="loading" hidden><span class="bar"></span><span class="loading-text">Working…</span></div>
+      <textarea id="prompt" placeholder="Ask a question or describe a replacement..."></textarea>
+      <div class="row"><button id="askButton">Ask</button><button id="previewButton" class="secondary">Preview operation</button></div>
+    </section>
+    <section class="card developer" aria-labelledby="streamTitle"><h2 id="streamTitle">Developer stream</h2><pre id="developerStream">Waiting for model tokens.</pre></section>
+    <section class="card preview" aria-labelledby="previewTitle"><h2 id="previewTitle">Operation preview</h2><pre id="preview">No operation planned.</pre><div class="row"><button id="applyButton" disabled>Apply</button><button id="cancelButton" class="ghost">Cancel</button></div></section>
+    <section class="card output" aria-labelledby="outputTitle"><h2 id="outputTitle">Download output</h2><a id="downloadLink" hidden download>Download output</a><button id="folderButton" class="secondary">Open output folder</button><p id="outputStatus">No output yet.</p></section>
   </main>
   <script src="/ui/app.js" defer></script>
 </body>
