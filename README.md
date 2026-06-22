@@ -80,11 +80,11 @@ Model trade-offs:
 | File type | Current API support | Tool capabilities |
 | --- | --- | --- |
 | DOCX | Upload, question answering, planning, literal text replacement, validation, download | Extract text from paragraphs, tables, headers, and footers; replace literal text while preserving existing package structure where possible. |
-| XLSX | Tool-level support | Inspect workbook structure, sample sheet data, update explicit cells, append rows with nearby styling, and copy cell style. |
+| XLSX | Upload, question answering, planning, literal text replacement, validation, download; tool-level cell update and row append support | Extract visible cell text, inspect workbook structure, sample sheet data, replace literal strings in non-formula cells, update explicit cells, append rows with nearby styling, and copy cell style. |
 | PPTX | Tool-level support | Inspect slide summaries, extract slide and notes text, and replace text inside existing runs. |
 | PDF | Tool-level read-only support | Extract text with PyMuPDF and fall back to pypdf; write operations are intentionally rejected. |
 
-The public upload endpoint currently accepts DOCX only. XLSX, PPTX, and PDF tools are available in code for controlled extensions, tests, and future API expansion.
+The public upload endpoint accepts DOCX and XLSX. PPTX and PDF tools are available in code for controlled extensions, tests, and future API expansion.
 
 ## 5. Known limitations
 

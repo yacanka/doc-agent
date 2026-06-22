@@ -22,11 +22,11 @@ def planning_prompt(instruction: str, document_text: str) -> str:
     """Build a strict JSON operation-planning prompt."""
     return (
         "Required mode: operation. Use exactly one mode. "
-        "Return one valid JSON object only for app.agent.schemas.ApplyRequest. "
+        "Return one valid JSON object only for app.agent.schemas.OperationPlan. "
         "Do not include markdown or prose. "
         f"Use exactly this schema: {_OPERATION_PLAN_SCHEMA}. "
         'Legacy-compatible replacements shape: {"replacements":{"existing document text":"replacement text"}}. '
-        "Allowed actions: replace_text. Allowed tools: word.replace_text. "
+        "Allowed actions: replace_text, update_cells, append_rows. Allowed tools: word.replace_text, excel.replace_text, excel.update_cells, excel.append_rows. Use Excel tools only for spreadsheet-style requests. "
         "Do not include file paths, write instructions, or destructive operations. "
         "If no safe literal replacement is possible, return an empty operations array.\n\n"
         f"Document:\n{document_text[:_MAX_DOCUMENT_CONTEXT]}\n\nInstruction: {instruction}\nJSON:"

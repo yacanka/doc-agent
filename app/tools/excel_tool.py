@@ -10,6 +10,8 @@ from typing import Any
 from openpyxl import load_workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
+from app.tools.excel_text import extract_text, replace_workbook_text
+
 
 @dataclass(frozen=True)
 class SheetSummary:
@@ -32,6 +34,27 @@ class WorkbookSummary:
     modified_by: str | None
     title: str | None
     subject: str | None
+
+
+def assert_xlsx(filename: str, content_type: str | None) -> None:
+    """Validate that an upload is an XLSX workbook with an allowed content type."""
+    allowed_types = {
+        None,
+        "",
+        "application/octet-stream",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }
+    if not filename.lower().endswith(".xlsx") or content_type not in allowed_types:
+        raise ValueError("Only XLSX workbook uploads are supported for Excel files")
+
+
+def replace_text(source: Path, destination: Path, replacements: dict[str, str]) -> int:
+    """Copy an XLSX and replace literal text inside string cells only."""
+    shutil.copy2(source, destination)
+    workbook = load_workbook(destination, data_only=False)
+    changed_count = replace_workbook_text(workbook, replacements)
+    workbook.save(destination)
+    return changed_count
 
 
 def inspect_workbook(path: Path) -> WorkbookSummary:

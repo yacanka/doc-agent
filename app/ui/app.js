@@ -61,7 +61,7 @@ async function checkStatus() {
 }
 async function uploadFile(file) {
   if (!file) return;
-  if (!isDocx(file)) return setBusy('Please choose a DOCX document.');
+  if (!isSupportedDocument(file)) return setBusy('Please choose a DOCX or XLSX document.');
   const formData = new FormData();
   formData.append('file', file);
   await withLoading('Uploading document…', async () => {
@@ -149,8 +149,9 @@ async function openOutputFolder() {
   const data = await requestJson('/output-folder', { method: 'POST' });
   setBusy(data.supported ? `Opened ${data.path}` : data.message);
 }
-function isDocx(file) {
-  return file.name.toLowerCase().endsWith('.docx');
+function isSupportedDocument(file) {
+  const name = file.name.toLowerCase();
+  return name.endsWith('.docx') || name.endsWith('.xlsx');
 }
 async function withLoading(message, work) {
   try { setControlsDisabled(true); setLoading(true, message); await work(); }

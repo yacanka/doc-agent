@@ -19,7 +19,8 @@ from app.config import ensure_workspace, load_config, public_config
 from app.model.llm import LocalLlm
 from app.model.prompts import planning_prompt, qa_prompt
 from app.storage.db import SessionStore
-from app.tools.word_tool import assert_docx, extract_text, safe_filename
+from app.tools.document_tool import assert_supported_document, extract_text
+from app.tools.word_tool import safe_filename
 
 _TESTCLIENT_HOST = "testclient"
 
@@ -56,9 +57,9 @@ def health() -> dict:
 
 @app.post("/documents")
 async def upload_document(file: UploadFile = File(...)) -> dict:
-    """Upload a single DOCX, extract text, and create a session."""
+    """Upload a single DOCX or XLSX, extract text, and create a session."""
     try:
-        assert_docx(file.filename or "document.docx", file.content_type)
+        assert_supported_document(file.filename or "document.docx", file.content_type)
         path = await _save_upload(file)
         session = store.create_session(safe_filename(file.filename or path.name), path)
         text = extract_text(path)
@@ -70,7 +71,7 @@ async def upload_document(file: UploadFile = File(...)) -> dict:
 
 @app.post("/sessions/{session_id}/questions")
 def answer_question(session_id: str, request: QuestionRequest) -> dict:
-    """Answer a question for an uploaded DOCX session."""
+    """Answer a question for an uploaded document session."""
     session = _session_or_404(session_id)
     answer = llm.answer(request.question, extract_text(Path(session["original_path"])))
     store.audit("question_answered", session_id, {"question": request.question})
@@ -140,7 +141,7 @@ async def _save_upload(file: UploadFile) -> Path:
     data = await file.read()
     if len(data) > config.max_upload_mb * 1024 * 1024:
         raise ValueError("Upload exceeds configured maximum size")
-    name = f"{uuid4().hex}_{safe_filename(file.filename or 'document.docx')}"
+    name = f"{uuid4().hex}_{safe_filename(file.filename or 'document')}"
     destination = config.originals_dir / name
     destination.write_bytes(data)
     return destination

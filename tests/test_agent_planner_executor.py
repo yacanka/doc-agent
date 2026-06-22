@@ -78,3 +78,45 @@ def test_executor_uses_controlled_paths_for_valid_operations(tmp_path: Path) -> 
     assert result.report["valid"] is True
     assert Path(result.output_path).is_file()
     assert str(tmp_path / "outputs") in result.output_path
+
+
+def _xlsx(path: Path, text: str) -> None:
+    from openpyxl import Workbook
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Data"
+    sheet["A1"] = text
+    sheet["B1"] = "=SUM(1,2)"
+    workbook.save(path)
+
+
+def test_executor_replaces_text_in_xlsx_without_touching_formulas(tmp_path: Path) -> None:
+    from openpyxl import load_workbook
+
+    source = tmp_path / "source.xlsx"
+    _xlsx(source, "Hello Alice")
+    session = {"original_path": str(source), "id": "session", "filename": "source.xlsx"}
+    planner = Planner(DummyLlm({"replacements": {"Alice": "Bob"}}))
+
+    result = Executor(tmp_path / "outputs").apply_plan(session, planner.plan_operations("Replace Alice", "Hello Alice"))
+
+    workbook = load_workbook(result.output_path, data_only=False)
+    assert result.changed_count == 1
+    assert result.report["valid"] is True
+    assert workbook["Data"]["A1"].value == "Hello Bob"
+    assert workbook["Data"]["B1"].value == "=SUM(1,2)"
+
+
+def test_planner_accepts_excel_update_cells_plan() -> None:
+    planner = Planner(DummyLlm({
+        "operations": [{
+            "action": "update_cells",
+            "tool": "excel.update_cells",
+            "parameters": {"updates": {"Data": {"A2": "Bob"}}},
+        }]
+    }))
+
+    plan = planner.plan_operations("Set Data A2 to Bob", "[Data]\nAlice")
+
+    assert plan.operations[0].parameters["updates"] == {"Data": {"A2": "Bob"}}

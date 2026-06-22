@@ -145,3 +145,22 @@ def test_plan_endpoint_returns_422_for_invalid_model_json(client, monkeypatch, t
 
     assert response.status_code == 422
     assert response.json()["detail"] == "Planner response must contain valid JSON"
+
+
+def test_upload_accepts_xlsx_document(client, tmp_path) -> None:
+    from openpyxl import Workbook
+
+    source = tmp_path / "sample.xlsx"
+    workbook = Workbook()
+    workbook.active["A1"] = "Hello Alice"
+    workbook.save(source)
+
+    with source.open("rb") as handle:
+        response = client.post(
+            "/documents",
+            files={"file": ("sample.xlsx", handle, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["filename"] == "sample.xlsx"
+    assert "Hello Alice" in response.json()["text_preview"]
