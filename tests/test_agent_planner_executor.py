@@ -120,3 +120,19 @@ def test_planner_accepts_excel_update_cells_plan() -> None:
     plan = planner.plan_operations("Set Data A2 to Bob", "[Data]\nAlice")
 
     assert plan.operations[0].parameters["updates"] == {"Data": {"A2": "Bob"}}
+
+
+def test_planner_normalizes_excel_range_update_payload() -> None:
+    planner = Planner(DummyLlm({
+        "operations": [{
+            "action": "update_cells",
+            "tool": "excel.update_cells",
+            "parameters": {"range": "Alpay Demircan!C2:C7", "values": [["4h"]]},
+        }]
+    }))
+
+    plan = planner.plan_operations("Update TimeSpent", "Alpay Demircan!C2 [value]: 1h")
+
+    assert plan.operations[0].parameters["updates"] == {
+        "Alpay Demircan": {"C2": "4h", "C3": "4h", "C4": "4h", "C5": "4h", "C6": "4h", "C7": "4h"}
+    }

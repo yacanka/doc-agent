@@ -6,6 +6,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.agent.excel_range import normalize_update_cells_payload
+
 
 class QuestionRequest(BaseModel):
     """Question payload for a document session."""
@@ -62,6 +64,16 @@ class ToolName(StrEnum):
 
 class DocumentOperation(BaseModel):
     """Validated operation requested by the planner."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_operation_payload(cls, payload: Any) -> Any:
+        """Normalize supported model aliases into the strict tool contract."""
+        if not isinstance(payload, dict):
+            return payload
+        if payload.get("action") == "update_cells":
+            return normalize_update_cells_payload(payload)
+        return payload
 
     action: Literal["replace_text", "update_cells", "append_rows", "validate_replacements"]
     tool: ToolName
