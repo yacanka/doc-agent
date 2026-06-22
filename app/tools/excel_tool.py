@@ -36,16 +36,22 @@ class WorkbookSummary:
     subject: str | None
 
 
+_XLSX_CONTENT_TYPES = {
+    "",
+    "application/octet-stream",
+    "application/zip",
+    "application/x-zip-compressed",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
+
+
 def assert_xlsx(filename: str, content_type: str | None) -> None:
-    """Validate that an upload is an XLSX workbook with an allowed content type."""
-    allowed_types = {
-        None,
-        "",
-        "application/octet-stream",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    }
-    if not filename.lower().endswith(".xlsx") or content_type not in allowed_types:
+    """Validate that an upload is an XLSX workbook with a browser-safe MIME type."""
+    if not filename.lower().endswith(".xlsx"):
         raise ValueError("Only XLSX workbook uploads are supported for Excel files")
+    if _normalized_content_type(content_type) not in _XLSX_CONTENT_TYPES:
+        raise ValueError("Unsupported XLSX upload content type")
 
 
 def replace_text(source: Path, destination: Path, replacements: dict[str, str]) -> int:
@@ -177,3 +183,7 @@ def _coordinate(value: Any) -> str | None:
 
 def _value(value: Any) -> str | None:
     return str(value) if value else None
+
+
+def _normalized_content_type(content_type: str | None) -> str:
+    return (content_type or "").split(";", maxsplit=1)[0].strip().lower()
