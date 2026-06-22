@@ -14,7 +14,6 @@ from fastapi.staticfiles import StaticFiles
 
 from app.agent.executor import Executor
 from app.agent.planner import Planner
-from app.agent.excel_rules import plan_excel_operation
 from app.agent.schemas import ApplyRequest, DocumentOperation, OperationPlan, PlanRequest, QuestionRequest, ToolName
 from app.config import ensure_workspace, load_config, public_config
 from app.model.llm import LocalLlm
@@ -159,11 +158,6 @@ def _plan_events(session: dict, instruction: str, document_text: str):
     """Yield planning tokens followed by a validated operation plan."""
     chunks = []
     try:
-        deterministic_plan = _deterministic_plan(session, instruction)
-        if deterministic_plan:
-            yield _sse("plan", _plan_payload(deterministic_plan))
-            yield _sse("done", {})
-            return
         prompt = planning_prompt(instruction, document_text)
         for token in llm.stream_complete(prompt):
             chunks.append(token)
@@ -188,17 +182,8 @@ def _stream_events(prompt: str):
 
 
 def _operation_plan(session: dict, instruction: str) -> OperationPlan:
-    deterministic_plan = _deterministic_plan(session, instruction)
-    if deterministic_plan:
-        return deterministic_plan
-    return planner.plan_operations(instruction, extract_text(Path(session["original_path"])))
-
-
-def _deterministic_plan(session: dict, instruction: str) -> OperationPlan | None:
-    source = Path(session["original_path"])
-    if source.suffix.lower() != ".xlsx":
-        return None
-    return plan_excel_operation(instruction)
+    document_text = extract_text(Path(session["original_path"]))
+    return planner.plan_operations(instruction, document_text)
 
 
 def _apply_plan(request: ApplyRequest) -> OperationPlan:

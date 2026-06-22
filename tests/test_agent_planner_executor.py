@@ -120,23 +120,3 @@ def test_planner_accepts_excel_update_cells_plan() -> None:
     plan = planner.plan_operations("Set Data A2 to Bob", "[Data]\nAlice")
 
     assert plan.operations[0].parameters["updates"] == {"Data": {"A2": "Bob"}}
-
-
-def test_excel_rule_planner_creates_explicit_cell_update() -> None:
-    from app.agent.excel_rules import plan_excel_operation
-
-    plan = plan_excel_operation("Set Data A2 to Bob")
-
-    assert plan is not None
-    operation = plan.operations[0]
-    assert operation.tool == "excel.update_cells"
-    assert operation.parameters["updates"] == {"Data": {"A2": "Bob"}}
-
-
-def test_excel_rule_planner_creates_append_row() -> None:
-    from app.agent.excel_rules import plan_excel_operation
-
-    plan = plan_excel_operation("append row to Data: Alice, 10, Paid")
-
-    assert plan is not None
-    assert plan.operations[0].parameters == {"sheet_name": "Data", "rows": [["Alice", "10", "Paid"]]}
