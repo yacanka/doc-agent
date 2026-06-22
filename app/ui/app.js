@@ -1,4 +1,4 @@
-const state = { sessionId: null, replacements: null, busy: false };
+const state = { sessionId: null, plan: null, busy: false };
 const baseUrl = window.location.origin;
 const elements = {
   status: document.querySelector('#status'), dropZone: document.querySelector('#dropZone'),
@@ -19,7 +19,7 @@ function setControlsDisabled(disabled) {
   elements.previewButton.disabled = disabled;
   elements.folderButton.disabled = disabled;
   elements.fileInput.disabled = disabled;
-  elements.applyButton.disabled = disabled || !state.replacements;
+  elements.applyButton.disabled = disabled || !state.plan;
 }
 function setLoading(active, message = 'Working…') {
   elements.loading.hidden = !active;
@@ -36,10 +36,10 @@ function appendDeveloperChunk(text) {
   elements.developerStream.textContent += text;
   elements.developerStream.scrollTop = elements.developerStream.scrollHeight;
 }
-function setPreview(replacements) {
-  state.replacements = replacements;
-  elements.preview.textContent = replacements ? JSON.stringify(replacements, null, 2) : 'No operation planned.';
-  elements.applyButton.disabled = state.busy || !replacements;
+function setPreview(plan) {
+  state.plan = plan;
+  elements.preview.textContent = plan ? JSON.stringify(plan, null, 2) : 'No operation planned.';
+  elements.applyButton.disabled = state.busy || !plan;
 }
 function renderDocumentInfo(data) {
   elements.documentInfo.innerHTML = `<dt>File</dt><dd>${data.filename}</dd><dt>Session</dt><dd>${data.session_id}</dd><dt>Characters</dt><dd>${data.text_length}</dd><dt>Preview</dt><dd>${data.text_preview || 'No text preview'}</dd>`;
@@ -124,7 +124,7 @@ function handleAnswerEvent({ event, data }, message) {
 function handlePlanEvent({ event, data }) {
   if (event === 'error') throw new Error(data.message || 'Plan stream failed');
   if (event === 'token') appendDeveloperChunk(data.text);
-  if (event === 'replacements') setPreview(data.items);
+  if (event === 'plan') setPreview(data);
 }
 async function previewOperation() {
   if (!state.sessionId) return setBusy('Upload a document first.');
@@ -139,7 +139,7 @@ async function previewOperation() {
 }
 async function applyOperation() {
   await withLoading('Applying operation…', async () => {
-    const data = await requestJson(`/sessions/${state.sessionId}/apply`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ replacements: state.replacements }) });
+    const data = await requestJson(`/sessions/${state.sessionId}/apply`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(state.plan) });
     elements.downloadLink.href = localPath(data.download_url);
     elements.downloadLink.hidden = false;
     setBusy(`Applied ${data.changed_count} changes.`);

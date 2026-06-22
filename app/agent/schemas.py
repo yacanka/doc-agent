@@ -20,9 +20,17 @@ class PlanRequest(BaseModel):
 
 
 class ApplyRequest(BaseModel):
-    """Literal replacement payload for deterministic DOCX edits."""
+    """Approved operation payload for deterministic document edits."""
 
-    replacements: dict[str, str] = Field(min_length=1)
+    replacements: dict[str, str] | None = None
+    operations: list[dict[str, Any]] | None = None
+
+    @model_validator(mode="after")
+    def require_edit_payload(self) -> "ApplyRequest":
+        """Require either legacy replacements or validated operations."""
+        if self.replacements or self.operations:
+            return self
+        raise ValueError("Apply requests require replacements or operations")
 
 
 class ChatMode(StrEnum):

@@ -7,9 +7,11 @@ from typing import Any
 from openpyxl import load_workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
+_MAX_CONTEXT_CELLS = 500
+
 
 def extract_text(path: Path) -> str:
-    """Extract visible workbook cell values as deterministic plain text."""
+    """Extract workbook context with sheet names, coordinates, values, and formulas."""
     workbook = load_workbook(path, data_only=False, read_only=True)
     try:
         return "\n".join(_sheet_text(sheet) for sheet in workbook.worksheets)
@@ -26,12 +28,32 @@ def replace_workbook_text(workbook: Any, replacements: dict[str, str]) -> int:
 
 
 def _sheet_text(sheet: Worksheet) -> str:
-    rows = [f"[{sheet.title}]"]
-    for values in sheet.iter_rows(values_only=True):
-        text_values = [str(value) for value in values if value is not None]
-        if text_values:
-            rows.append(" | ".join(text_values))
-    return "\n".join(rows)
+    lines = [_sheet_header(sheet)]
+    lines.extend(_cell_lines(sheet))
+    if len(lines) == 1:
+        lines.append("<empty sheet>")
+    return "\n".join(lines)
+
+
+def _sheet_header(sheet: Worksheet) -> str:
+    return f"Sheet '{sheet.title}' ({sheet.max_row} rows x {sheet.max_column} columns)"
+
+
+def _cell_lines(sheet: Worksheet) -> list[str]:
+    lines: list[str] = []
+    for row in sheet.iter_rows():
+        for cell in row:
+            if cell.value is not None:
+                lines.append(_cell_line(cell))
+            if len(lines) >= _MAX_CONTEXT_CELLS:
+                return lines + ["... truncated workbook context ..."]
+    return lines
+
+
+def _cell_line(cell: Any) -> str:
+    value = str(cell.value)
+    value_type = "formula" if value.startswith("=") else "value"
+    return f"{cell.parent.title}!{cell.coordinate} [{value_type}]: {value}"
 
 
 def _replace_sheet_text(sheet: Worksheet, replacements: dict[str, str]) -> int:
