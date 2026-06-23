@@ -5,8 +5,9 @@ from pathlib import Path
 from typing import Any
 
 from app.agent.schemas import DocumentOperation, ExecutionResult, OperationPlan, ToolName
+from app.tools import excel_tool
 from app.tools.validation_tool import validate_replacements, write_report
-from app.tools.word_tool import replace_text, timestamped_output
+from app.tools.word_tool import replace_text as replace_word_text, timestamped_output
 
 
 class Executor:
@@ -66,8 +67,14 @@ class _ExecutionContext:
 
 
 def _dispatch_operation(operation: DocumentOperation, context: _ExecutionContext) -> None:
-    if operation.tool == ToolName.WORD_REPLACE_TEXT:
+    if operation.tool in {ToolName.WORD_REPLACE_TEXT, ToolName.EXCEL_REPLACE_TEXT}:
         _run_replace_text(operation, context)
+        return
+    if operation.tool == ToolName.EXCEL_UPDATE_CELLS:
+        _run_update_cells(operation, context)
+        return
+    if operation.tool == ToolName.EXCEL_APPEND_ROWS:
+        _run_append_rows(operation, context)
         return
     if operation.tool == ToolName.VALIDATE_REPLACEMENTS:
         _run_validation(context)
@@ -78,7 +85,7 @@ def _dispatch_operation(operation: DocumentOperation, context: _ExecutionContext
 def _run_replace_text(operation: DocumentOperation, context: _ExecutionContext) -> None:
     replacements = operation.parameters["replacements"]
     context.replacements = {str(key): str(value) for key, value in replacements.items()}
-    context.changed_count = replace_text(context.source, context.output_path, context.replacements)
+    context.changed_count = _replace_text(context.source, context.output_path, context.replacements)
     _run_validation(context)
 
 
@@ -86,3 +93,20 @@ def _run_validation(context: _ExecutionContext) -> None:
     if not context.replacements:
         raise ValueError("Validation requires executed replacements")
     context.report = validate_replacements(context.output_path, context.replacements, context.changed_count)
+
+
+def _replace_text(source: Path, output: Path, replacements: dict[str, str]) -> int:
+    if source.suffix.lower() == ".xlsx":
+        return excel_tool.replace_text(source, output, replacements)
+    return replace_word_text(source, output, replacements)
+
+
+def _run_update_cells(operation: DocumentOperation, context: _ExecutionContext) -> None:
+    updates = operation.parameters["updates"]
+    context.changed_count = excel_tool.update_cells(context.source, context.output_path, updates)
+
+
+def _run_append_rows(operation: DocumentOperation, context: _ExecutionContext) -> None:
+    sheet_name = operation.parameters["sheet_name"]
+    rows = operation.parameters["rows"]
+    context.changed_count = excel_tool.append_rows(context.source, context.output_path, sheet_name, rows)

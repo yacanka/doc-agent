@@ -53,8 +53,8 @@ def validate_output_file(original_path: Path, output_path: Path, workspace_root:
 
 
 def validate_replacements(path: Path, replacements: dict[str, str], changed_count: int) -> dict[str, Any]:
-    """Validate a DOCX replacement by confirming expected visible text changes."""
-    from app.tools.word_tool import extract_text
+    """Validate a replacement by confirming expected visible text changes."""
+    from app.tools.document_tool import extract_text
 
     text = extract_text(path)
     missing = [value for value in replacements.values() if value not in text]

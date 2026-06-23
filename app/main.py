@@ -14,12 +14,13 @@ from fastapi.staticfiles import StaticFiles
 
 from app.agent.executor import Executor
 from app.agent.planner import Planner
-from app.agent.schemas import ApplyRequest, PlanRequest, QuestionRequest
+from app.agent.schemas import ApplyRequest, DocumentOperation, OperationPlan, PlanRequest, QuestionRequest, ToolName
 from app.config import ensure_workspace, load_config, public_config
 from app.model.llm import LocalLlm
 from app.model.prompts import planning_prompt, qa_prompt
 from app.storage.db import SessionStore
-from app.tools.word_tool import assert_docx, extract_text, safe_filename
+from app.tools.document_tool import assert_supported_document, extract_text
+from app.tools.word_tool import safe_filename
 
 _TESTCLIENT_HOST = "testclient"
 
@@ -56,9 +57,9 @@ def health() -> dict:
 
 @app.post("/documents")
 async def upload_document(file: UploadFile = File(...)) -> dict:
-    """Upload a single DOCX, extract text, and create a session."""
+    """Upload a single DOCX or XLSX, extract text, and create a session."""
     try:
-        assert_docx(file.filename or "document.docx", file.content_type)
+        assert_supported_document(file.filename or "document.docx", file.content_type)
         path = await _save_upload(file)
         session = store.create_session(safe_filename(file.filename or path.name), path)
         text = extract_text(path)
@@ -70,7 +71,7 @@ async def upload_document(file: UploadFile = File(...)) -> dict:
 
 @app.post("/sessions/{session_id}/questions")
 def answer_question(session_id: str, request: QuestionRequest) -> dict:
-    """Answer a question for an uploaded DOCX session."""
+    """Answer a question for an uploaded document session."""
     session = _session_or_404(session_id)
     answer = llm.answer(request.question, extract_text(Path(session["original_path"])))
     store.audit("question_answered", session_id, {"question": request.question})
@@ -92,26 +93,28 @@ def stream_plan_operations(session_id: str, request: PlanRequest) -> StreamingRe
     session = _session_or_404(session_id)
     document_text = extract_text(Path(session["original_path"]))
     store.audit("plan_stream_started", session_id, {"instruction": request.instruction})
-    return _event_response(_plan_events(request.instruction, document_text))
+    return _event_response(_plan_events(session, request.instruction, document_text))
 
 
 @app.post("/sessions/{session_id}/plan")
 def plan_operations(session_id: str, request: PlanRequest) -> dict:
-    """Create a JSON text replacement plan for a document session."""
+    """Create a validated operation plan for a document session."""
     session = _session_or_404(session_id)
     try:
-        replacements = planner.plan(request.instruction, extract_text(Path(session["original_path"])))
+        plan = _operation_plan(session, request.instruction)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
-    store.audit("plan_created", session_id, {"replacements": replacements})
-    return {"replacements": replacements}
+    payload = _plan_payload(plan)
+    store.audit("plan_created", session_id, payload)
+    return payload
 
 
 @app.post("/sessions/{session_id}/apply")
 def apply_operations(session_id: str, request: ApplyRequest) -> dict:
-    """Apply literal replacements and create output plus validation report."""
+    """Apply approved replacements or operations and create an output."""
     session = _session_or_404(session_id)
-    result = executor.apply(session, request.replacements)
+    plan = _apply_plan(request)
+    result = executor.apply_plan(session, plan).model_dump()
     store.update_session(session_id, last_output=result["output_path"])
     store.audit("operations_applied", session_id, result)
     result["download_url"] = _download_url(result["output_path"])
@@ -140,7 +143,7 @@ async def _save_upload(file: UploadFile) -> Path:
     data = await file.read()
     if len(data) > config.max_upload_mb * 1024 * 1024:
         raise ValueError("Upload exceeds configured maximum size")
-    name = f"{uuid4().hex}_{safe_filename(file.filename or 'document.docx')}"
+    name = f"{uuid4().hex}_{safe_filename(file.filename or 'document')}"
     destination = config.originals_dir / name
     destination.write_bytes(data)
     return destination
@@ -151,16 +154,19 @@ def _answer_events(question: str, document_text: str):
     yield from _stream_events(qa_prompt(question, document_text))
 
 
-def _plan_events(instruction: str, document_text: str):
-    """Yield planning tokens followed by parsed replacement JSON."""
+def _plan_events(session: dict, instruction: str, document_text: str):
+    """Yield planning tokens followed by a validated operation plan."""
     chunks = []
     try:
         prompt = planning_prompt(instruction, document_text)
         for token in llm.stream_complete(prompt):
             chunks.append(token)
             yield _sse("token", {"text": token})
-        replacements = planner.parse_response("".join(chunks))
-        yield _sse("replacements", {"items": _plan_replacements(replacements)})
+        plan = planner.parse_response("".join(chunks))
+        yield _sse("plan", _plan_payload(plan))
+        replacements = _optional_replacements(plan)
+        if replacements:
+            yield _sse("replacements", {"items": replacements})
         yield _sse("done", {})
     except Exception as error:
         yield _sse("error", {"message": str(error)})
@@ -174,6 +180,36 @@ def _stream_events(prompt: str):
     except Exception as error:
         yield _sse("error", {"message": str(error)})
 
+
+def _operation_plan(session: dict, instruction: str) -> OperationPlan:
+    document_text = extract_text(Path(session["original_path"]))
+    return planner.plan_operations(instruction, document_text)
+
+
+def _apply_plan(request: ApplyRequest) -> OperationPlan:
+    if request.operations:
+        return OperationPlan(operations=request.operations)
+    return OperationPlan(operations=[_replacement_operation(request.replacements or {})])
+
+
+def _replacement_operation(replacements: dict[str, str]) -> DocumentOperation:
+    return DocumentOperation(
+        action="replace_text",
+        tool=ToolName.WORD_REPLACE_TEXT,
+        parameters={"replacements": replacements},
+    )
+
+
+def _plan_payload(plan: OperationPlan) -> dict:
+    operations = [operation.model_dump(mode="json") for operation in plan.operations]
+    return {"operations": operations, "replacements": _optional_replacements(plan)}
+
+
+def _optional_replacements(plan: OperationPlan) -> dict[str, str] | None:
+    try:
+        return _plan_replacements(plan)
+    except ValueError:
+        return None
 
 def _plan_replacements(plan) -> dict[str, str]:
     for operation in plan.operations:
